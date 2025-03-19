@@ -1,0 +1,8 @@
+{{- if .Values.volumeConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.volumeConfigMap.name }}
+data:
+{{- toYaml .Values.volumeConfigMap.data | nindent 2 }}
+{{- end }}

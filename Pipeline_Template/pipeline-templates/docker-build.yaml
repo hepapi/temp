@@ -1,0 +1,34 @@
+parameters:
+  - name: serviceName  
+    type: string
+  - name: dockerFilePath  
+    type: string
+  - name: servicePath  
+    type: string
+
+stages:
+  - stage: dockerBuild
+    displayName: Docker Build stage
+    jobs:
+    - job: dockerBuild
+      displayName: Docker Build and Push
+      steps:
+        # - task: Docker@2
+        #   displayName: Build an image
+        #   inputs:
+        #     containerRegistry: 'xxxxxRegistery'
+        #     command: 'buildAndPush'
+        #     dockerFile: $(dockerfilePath)
+        #     repository: ${{ parameters.serviceName }}
+        #     tags: |
+        #       $(Build.BuildNumber)
+        - script: |
+            echo "Logging into Azure Container Registry with docker..."
+            echo $(ACR_PASSWORD) | docker login xxx.azurecr.io -u $(ACR_USERNAME) --password-stdin
+          displayName: "Docker Login to ACR"
+        - script: |
+            export DOCKER_BUILDKIT=1
+            cd ${{ parameters.servicePath }}
+            docker build -t xxx.azurecr.io/${{ parameters.serviceName }}-$(Build.SourceBranchName):$(Build.BuildNumber) -f ${{ parameters.dockerFilePath }} .
+            docker push xxx.azurecr.io/${{ parameters.serviceName }}-$(Build.SourceBranchName):$(Build.BuildNumber)
+          displayName: 'docker build and push'

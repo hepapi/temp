@@ -1,0 +1,8 @@
+{{- if .Values.extraConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.extraConfigMap.name }}
+data:
+{{- toYaml .Values.extraConfigMap.data | nindent 2 }}
+{{- end }}

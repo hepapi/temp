@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-system
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://xxx@dev.azure.com/xxx/xxx/_git/gitops'
+    targetRevision: main
+    # path to the directory containing the application manifests
+    path: system/ 
+    directory:
+      recurse: true # finds all yaml files in subdirectories
+      exclude: '{*RootArgoApp.yaml,*RootArgoApp.yml}' # do not manage root apps
+      # include: '*.yaml'
+  destination:
+    name: "in-cluster"
+    namespace: argocd
+  syncPolicy:
+    automated: 
+      prune: true 
+      selfHeal: true

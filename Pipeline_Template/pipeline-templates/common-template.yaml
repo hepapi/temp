@@ -1,0 +1,27 @@
+parameters:
+  # - name: AppRepoDeploymentsFolder  
+  #   type: string
+  - name: HelmChartYamlFilename  
+    type: string 
+  - name: HelmValuesYamlFilename  
+    type: string 
+  - name: serviceName  
+    type: string
+  - name: dockerFilePath  
+    type: string
+  - name: servicePath  
+    type: string
+    
+stages:
+    - template: docker-build.yaml
+      parameters:
+        serviceName: ${{ parameters.serviceName }}
+        dockerFilePath: ${{ parameters.dockerFilePath }}
+        servicePath: ${{ parameters.servicePath }}
+
+    - template: helm-package-and-upload-v1.yaml
+      parameters:
+        # AppRepoDeploymentsFolder: ${{ parameters.AppRepoDeploymentsFolder }}
+        HelmChartYamlFilename: ${{ parameters.HelmChartYamlFilename }}
+        HelmValuesYamlFilename: ${{ parameters.HelmValuesYamlFilename }}
+        serviceName: ${{ parameters.serviceName }}

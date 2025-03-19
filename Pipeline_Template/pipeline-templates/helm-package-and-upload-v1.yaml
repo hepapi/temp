@@ -1,0 +1,99 @@
+parameters:
+  # - name: AppRepoDeploymentsFolder  
+  #   type: string
+  - name: HelmChartYamlFilename  
+    type: string 
+  - name: HelmValuesYamlFilename  
+    type: string 
+  - name: serviceName  
+    type: string
+stages:
+  - stage: helmBuild
+    displayName: Helm Build stage
+    jobs:
+    - job: HelmBuild
+      displayName: Helm Package and Push
+      steps:
+        - checkout: git://$(System.TeamProject)/$(Build.Repository.Name)@deployments
+          path: "deployments_repo"
+          fetchDepth: 1 
+  
+        - bash: |
+            ls -la ../
+            cp -r ../deployments_repo/* . 
+            ls -la
+          displayName: 'Move deployments_repo to s/ folder'
+
+        - checkout: helm-base-common
+          path: helm-base-common
+          fetchDepth: 1  
+
+      # # Helm install
+      # - task: HelmInstaller@0
+      #   displayName: 'Install Helm Latest'
+      #   inputs:
+      #     helmVersion: latest
+      #   continueOnError: true
+
+      # # "$HelmBaseRepoName" repo is cloned to `./helm-cur-chart/` directory
+      # # `./helm-cur-chart/` is expected to only have `templates/*` folder.
+
+        - script: |
+            mkdir -p helm-cur-chart/templates/
+          displayName: 'Create helm-cur-chart/ folder'
+        
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '../helm-base-common/templates/'
+            Contents: '**'
+            TargetFolder: '$(Build.SourcesDirectory)/helm-cur-chart/templates/'
+          displayName: "Copy over the Chart folder  to helm-cur-chart/"
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/${{parameters.serviceName}}/$(Build.SourceBranchName)'
+            Contents: |
+              ${{parameters.HelmValuesYamlFilename}}
+              ${{parameters.HelmChartYamlFilename}}
+            TargetFolder: '$(Build.SourcesDirectory)/helm-cur-chart'
+          displayName: "Copy over the values.yaml and Chart.yaml to helm-cur-chart/ dir "
+          
+        - script: |
+            NEW_TAG="$(Build.BuildNumber)"
+            echo "Updating the values.yaml .image.tag to: ${NEW_TAG}"
+            sed -i 's/^\( \{2,4\}\)tag:.*/\1tag: '"${NEW_TAG}"'/' helm-cur-chart/${{parameters.HelmValuesYamlFilename}}
+            cat helm-cur-chart/${{parameters.HelmValuesYamlFilename}}
+          displayName: 'Patch values.yaml .image.tag'
+
+        - script: |
+            NEW_TAG="$(Build.BuildNumber)"
+            echo "Updating the Chart.yaml .version and .appVersion to: ${NEW_TAG}"
+            sed -i 's/^appVersion:.*/appVersion: '"${NEW_TAG}"'/' helm-cur-chart/Chart.yaml 
+            sed -i 's/^version:.*/version: '"${NEW_TAG}"'/' helm-cur-chart/Chart.yaml
+            cat helm-cur-chart/Chart.yaml
+          displayName: 'Patch Chart.yaml .version and .appVersion'
+
+        # - task: Docker@2
+        #   inputs:
+        #     containerRegistry: 'xxx'
+        #     command: 'login'
+        #   displayName: Login to xxx
+
+        - bash: |
+            helm lint ./helm-cur-chart
+          displayName: 'Helm Lint'
+          continueOnError: true 
+
+        - script: |
+            echo "Logging into Helm Registry..."
+            helm registry login xxx.azurecr.io --username $(ACR_USERNAME) --password $(ACR_PASSWORD)
+          displayName: "Helm Registry Login"
+
+        - bash: |
+            HELM_PACKAGE_OUTPUT=$(helm package ./helm-cur-chart)
+            echo $HELM_PACKAGE_OUTPUT
+            ls -la *.tgz
+            FILENAME=$( basename "$HELM_PACKAGE_OUTPUT")
+            echo "Found generated helm chart name to be: $FILENAME"
+            helm push "$FILENAME" oci://xxx.azurecr.io/helm
+          displayName: 'Helm Package and Push to xxx.azurecr.io'

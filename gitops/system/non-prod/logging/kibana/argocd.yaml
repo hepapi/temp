@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kibana
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: dev    
+            version: 8.5.1
+            domain: "xxx.com"
+            
+  template:
+    metadata:
+      name: '{{cluster}}-kibana'
+    spec:
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: false
+        syncOptions:
+          - Validate=true
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true
+          - ServerSideApply=true
+      destination:
+          namespace: logging
+          name: '{{cluster}}'
+      project: default
+      source:
+        repoURL: https://helm.elastic.co
+        targetRevision: '{{version}}'
+        chart: kibana
+        helm:
+          values: |
+            ingress:
+              enabled: true
+              className: "nginx"
+              pathtype: ImplementationSpecific
+
+              hosts:
+                - host: kibana.{{domain}}
+                  paths:
+                    - path: /
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "128Mi"

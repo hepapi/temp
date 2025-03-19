@@ -1,0 +1,32 @@
+trigger:
+  branches:
+    include:
+      - dev
+      - main
+
+
+name: 1.0.$(rev:r)
+
+variables:
+- group: devops
+
+resources:
+  repositories:
+    - repository: self 
+    - repository: xxx-build-yml
+      type: git
+      name: xxx/xxx-build-yml 
+      ref: refs/heads/main
+    - repository: xxx-helm-common  
+      type: git
+      name: xxx/xxx-helm-common  
+      ref: refs/heads/main
+      
+stages:
+  - template: pipeline-templates/common-template.yaml@xxx-build-yml
+    parameters:
+      HelmChartYamlFilename: 'Chart.yaml' 
+      HelmValuesYamlFilename: 'values.yaml' 
+      serviceName: 'xxx-common-service'
+      dockerFilePath: 'xxx/Dockerfile'
+      servicePath: '.'

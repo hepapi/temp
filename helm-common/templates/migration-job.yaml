@@ -1,0 +1,53 @@
+
+{{- if .Values.migrationJob }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-db-migration-job-{{ .Release.Revision }}
+  annotations:
+    "helm.sh/hook": "pre-install,pre-upgrade"
+spec:
+  ttlSecondsAfterFinished: {{ .Values.migrationJob.ttlSecondsAfterFinished | default 172800 }}
+  backoffLimit: {{ .Values.migrationJob.backoffLimit | default 3 }}
+  template:
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Release.Name }}-db-migration-container
+        command: {{ .Values.migrationJob.command | toYaml | nindent 8 }}
+        {{- if .Values.migrationJob.args }}
+        args: {{ .Values.migrationJob.args | toYaml | nindent 8 }}
+        {{- end }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+         {{- if or .Values.extraConfigMap .Values.extraSecret .Values.externalSecret }}
+        envFrom:
+          {{- if .Values.extraConfigMap }}
+          - configMapRef:
+              name: {{ .Values.extraConfigMap.name }}
+          {{- end }}
+          {{- if .Values.extraSecret }}
+          - secretRef:
+              name: {{ .Values.extraSecret.name }}
+          {{- end }}
+          {{- if .Values.externalSecret }}
+          - secretRef:
+              name: {{ .Values.externalSecret.name }}
+          {{- end }}
+        {{- end }}
+{{- end }}

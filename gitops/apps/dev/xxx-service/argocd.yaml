@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: xx-xxx-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'xxx.azurecr.io/helm'
+    chart: xxxx-xxx-dev
+    targetRevision: '1.*'
+  destination:
+    name: "dev"
+    namespace: dev
+  syncPolicy:
+    automated: 
+      prune: true 
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

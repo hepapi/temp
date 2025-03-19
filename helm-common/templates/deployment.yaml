@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    reloader.stakater.com/auto: "true"
+  name: {{ include "base-common.fullname" . }}
+  labels:
+    {{- include "base-common.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25% 
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      {{- include "base-common.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "base-common.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "base-common.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      volumes:
+        {{- $persistence := .Values.persistence | default dict }}
+        {{- $persistenceEnabled := $persistence.enabled | default false }} 
+        {{- if and (typeIs "bool" $persistenceEnabled) (eq $persistenceEnabled true) (not $persistence.existingClaim) }}
+        - name: {{ .Values.nameOverride }}-volume
+          persistentVolumeClaim:
+            claimName: {{ template "base-common.name" . }}-pvc
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}
+        {{- if .Values.volumeConfigMap }}
+        - name: {{ .Values.volumeConfigMap.name }}
+          configMap:
+            name: {{ .Values.volumeConfigMap.name }}
+        {{- end }}
+      containers:
+        - name: {{ .Values.nameOverride }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if or .Values.extraConfigMap .Values.extraSecret .Values.externalSecret }}
+          envFrom:
+            {{- if .Values.extraConfigMap }}
+            - configMapRef:
+                name: {{ .Values.extraConfigMap.name }}
+            {{- end }}
+            {{- if .Values.extraSecret }}
+            - secretRef:
+                name: {{ .Values.extraSecret.name }}
+            {{- end }}
+            {{- if .Values.externalSecret }}
+            - secretRef:
+                name: {{ .Values.externalSecret.name }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.container }}
+          {{- toYaml .Values.container | nindent 10 }}
+          {{- end }}
+          volumeMounts:
+            {{- if and (typeIs "bool" $persistenceEnabled) (eq $persistenceEnabled true) (not $persistence.existingClaim) }}
+            - name: {{ .Values.nameOverride }}-volume
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+            {{- if .Values.volumeConfigMap }}
+            - name: {{ .Values.volumeConfigMap.name }}
+              mountPath: {{ .Values.volumeConfigMap.mountPath }}
+              subPath: {{ .Values.volumeConfigMap.subPath }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- if (.Values.service.livenessProbe).enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.service.livenessProbe.path | default "/health" }}
+              port: {{ .Values.service.livenessProbe.port | default 80 }}
+            initialDelaySeconds: {{ .Values.service.livenessProbe.initialDelaySeconds | default 600 }}
+            periodSeconds: {{ .Values.service.livenessProbe.periodSeconds | default 60 }}
+            timeoutSeconds: {{ .Values.service.livenessProbe.timeoutSeconds | default 10 }}
+            failureThreshold: {{ .Values.service.livenessProbe.failureThreshold | default 3 }}
+            successThreshold: {{ .Values.service.livenessProbe.successThreshold | default 1 }}
+          {{- end }}
+          {{- if (.Values.service.startupProbe).enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.service.startupProbe.path }}
+              port: {{ .Values.service.startupProbe.port }}
+            periodSeconds: {{ .Values.service.periodSeconds }}
+            failureThreshold: {{ .Values.service.startupProbe.failureThreshold }}
+            timeoutSeconds: {{ .Values.service.startupProbe.timeoutSeconds }}
+          {{- end }}
+          {{- if (.Values.service.readinessProbe).enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.service.readinessProbe.path }}
+              port: {{ .Values.service.readinessProbe.port }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsConfig }}
+      dnsConfig:
+        nameservers:
+      {{ toYaml .Values.dnsConfig.nameservers | indent 4 }}
+        searches:
+      {{ toYaml .Values.dnsConfig.searches | indent 4 }}
+      {{- end }}
+      dnsPolicy: {{ .Values.dnsPolicy | default "ClusterFirst" }}

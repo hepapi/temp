@@ -1,0 +1,33 @@
+{{- $persistence := .Values.persistence | default dict }}
+{{- $persistenceEnabled := $persistence.enabled | default false }} 
+{{- if and (typeIs "bool" $persistenceEnabled) (eq $persistenceEnabled true) (not $persistence.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ template "base-common.name" . }}-pvc
+  namespace: {{ .Release.Namespace }}
+  {{- with $persistence.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  labels:
+    app: {{ template "base-common.name" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  accessModes:
+    - {{ $persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ $persistence.size | quote }}
+  {{- if $persistence.storageClass }}
+  {{- if (eq "-" $persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: "{{ $persistence.storageClass }}"
+  {{- end }}
+  {{- end }}
+{{- else }}
+# Persistence is not enabled or defined; skipping PVC creation.
+{{- end }}
